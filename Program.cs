@@ -15,6 +15,11 @@ namespace TNTForumReleaseListClient
     public class Program
     {
         const string requestUrl = "http://www.tntvillage.scambioetico.org/src/releaselist.php";
+        /// <summary>
+        /// Number of maximum pages to be loaded for a single search.
+        /// </summary>
+        /// <remark>Prevents huge data downloads.</remark>
+        const uint maxPages = 100;
 
         public static async Task Main(string[] args)
         {
@@ -35,8 +40,6 @@ namespace TNTForumReleaseListClient
             //Program.ShowData(releases);
 
             Console.WriteLine("Fetched {0} records and printed in {1}.", releases.Count(), outputFilePath);
-
-            Console.Read();
         }
 
         #region Subroutines
@@ -69,16 +72,14 @@ namespace TNTForumReleaseListClient
 
             var sourceHtml = await Program.GetHtmlDocumentAsync(search: search, category: category);
             var releases = Program.ReadTable(Program.GetTableNode(sourceHtml));
-            var pages = Program.GetLastPageNumber(sourceHtml);
+            var pages = Math.Min(maxPages, Program.GetLastPageNumber(sourceHtml));
 
             Console.WriteLine("Fetching {0} pages.", pages - 1);
-
-            if (pages > 100) throw new Exception();
 
             var bag = new ConcurrentBag<Release>(releases);
 
             await Task.WhenAll(Enumerable.Range(2, Convert.ToInt32(pages)).Select(i => // i from 2 to pages
-                // await HTTP response and parse the document
+                                                                                       // await HTTP response and parse the document
                 Program.GetHtmlDocumentAsync(search: search, category: category, page: Convert.ToUInt32(i))
                     // Then read the data and add each record to bag
                     .ContinueWith(html => Program.ReadTable(Program.GetTableNode(html.Result)).ForEach(bag.Add))
@@ -126,11 +127,9 @@ namespace TNTForumReleaseListClient
 
             var htmlDoc = new HtmlDocument();
             using (var stream = response.GetResponseStream())
-            {
                 htmlDoc.Load(response.GetResponseStream());
 
-                return htmlDoc;
-            }
+            return htmlDoc;
         }
 
         public static HtmlDocument GetHtmlDocument(byte category = 0, uint page = 1, string search = null)
@@ -164,11 +163,9 @@ namespace TNTForumReleaseListClient
 
             var htmlDoc = new HtmlDocument();
             using (var stream = response.GetResponseStream())
-            {
                 htmlDoc.Load(response.GetResponseStream());
 
-                return htmlDoc;
-            }
+            return htmlDoc;
         }
 
         public static HtmlNode GetTableNode(HtmlDocument html)
@@ -178,7 +175,9 @@ namespace TNTForumReleaseListClient
         {
             var list = html.DocumentNode.SelectSingleNode("/div[2]/ul[1]");
 
-            return Convert.ToUInt32(list.ChildNodes.First((node) => node.InnerText == "Ultima").Attributes.First((attr) => attr.Name == "p").Value);
+            return Convert.ToUInt32(list
+                .ChildNodes.First((node) => node.InnerText == "Ultima")
+                .Attributes.First((attr) => attr.Name == "p").Value);
         }
         #endregion
 
@@ -205,21 +204,24 @@ namespace TNTForumReleaseListClient
                     case 0:
                         // Torrent download link
                         // Format: <a href='{URL}'><img src='images/icon_bt_16x16.png' alt='Download torrent'></a>
-                        release.Torrent = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value, UriKind.Absolute);
+                        release.Torrent = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value,
+                            UriKind.Absolute);
 
                         break;
 
                     case 1:
                         // Magnet link
                         // Format: <a href='{MAGNET}'><img src='images/icon_magnet_16x16.png' alt='Magnet link'></a>
-                        release.Magnet = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value, UriKind.Absolute);
+                        release.Magnet = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value,
+                            UriKind.Absolute);
 
                         break;
 
                     case 2:
                         // Category
                         // Format: <a href='http://forum.tntvillage.scambioetico.org/index.php?act=allreleases&st=0&filter=&sb=1&sd=0&cat={CATEGORY}' target='_blank'><img src='http://forum.tntvillage.scambioetico.org/style_images/mkportal-636/icon{CATEGORY}.gif' height='16px'></a>
-                        var url = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value, UriKind.Absolute);
+                        var url = new Uri(fields.ElementAt(i).FirstChild.Attributes.First((attr) => attr.Name == "href").Value,
+                            UriKind.Absolute);
 
                         release.Category = Convert.ToByte(QueryHelpers.ParseQuery(url.Query)["cat"]);
 
@@ -251,7 +253,8 @@ namespace TNTForumReleaseListClient
                         // Format: <a href='{DESCR_PAGE}' target='_blank'>{TITLE}</a> {NOTES}
                         var link = fields.ElementAt(i).FirstChild;
 
-                        release.DescriptionPage = new Uri(link.Attributes.First((attr) => attr.Name == "href").Value, UriKind.Absolute);
+                        release.DescriptionPage = new Uri(link.Attributes.First((attr) => attr.Name == "href").Value,
+                            UriKind.Absolute);
                         release.Title = link.InnerText;
                         release.Notes = WebUtility.HtmlDecode(link.NextSibling.InnerText).Trim();
 
