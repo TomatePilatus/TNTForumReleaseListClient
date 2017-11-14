@@ -3,6 +3,6 @@ Since a couple of years, the website [TNT village](http://www.tntvillage.scambio
 
 Once you have compiled the project, just run the following command:
 
-    TNTForumReleaseListClient.exe what are you looking for
+    TNTForumReleaseListClient.exe what you are looking for
 
 and the program will write all records found in a CSV file `output.csv` in the same directory.
